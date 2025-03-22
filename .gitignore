@@ -11,11 +11,12 @@
 *.csv
 *.JPG
 *.jpg
+*.png
 
-.tiff
-.qgz
-.cpg
-.dbf
-.prj
-.shp
-.shx
+*.tiff
+*.qgz
+*.cpg
+*.dbf
+*.prj
+*.shp
+*.shx
