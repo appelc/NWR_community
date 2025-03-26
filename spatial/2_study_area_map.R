@@ -25,8 +25,7 @@ library(maptiles)
   study_area <- st_read('data/raw/covariates/Nkhotakota Veg Data/Shapefiles/Fence_line.shp.zip')
   
   #interior fence
-  fence <- st_read('data/raw/covariates/fence_polygons.shp')
-    fence <- st_transform(fence, nwr_crs)
+  fence <- st_read('data/raw/covariates/south_fence_shp_south_edited.shp')
     
   #major rivers
   bua_river <- st_read('data/raw/covariates/nwr_rivers_bua.shp')
@@ -36,7 +35,7 @@ library(maptiles)
   grid_cells <- st_read('data/raw/covariates/from_Ray_2024/Nkhotakota_hexagon_summaries/Nkhotakota_hexagon_summaries.shp')
   
   #plot coordinates
-  plot_coords <- read.csv('data/raw/covariates/MonitoringPlots_corrected_031825.csv')
+  plot_coords <- read.csv('data/raw/covariates/MonitoringPlots_corrected_031825_withFence.csv')
   
     #convert coords to sf object
     plot_points <- st_as_sf(camera_csv, coords = c('UTMXcorrec','UTMYcorrec'), crs = nwr_crs)
@@ -65,14 +64,17 @@ library(maptiles)
     geom_sf(data = grid_cells[grid_cells$Sample == 1,], fill = 'forestgreen', color = "darkgrey", size = 0.5, alpha = 0.7) +
     
     #add fence
-    geom_sf(data = fence, fill = NA, color = 'black', linewidth = 0.8, linetype = 'dotted') +
+    geom_sf(data = fence, fill = NA, color = 'black', linewidth = 0.9, linetype = 'dashed') +
     
-    #add rivers (CLIP FIRST?)
-    geom_sf(data = bua_river, color = 'dodgerblue3', linewidth = 0.5) +
-    geom_sf(data = kaombe_river, color = 'dodgerblue3', linewidth = 0.5) +
+    #add rivers (OPTIONAL?)
+    geom_sf(data = bua_river, color = 'dodgerblue3', linewidth = 0.3) +
+    geom_sf(data = kaombe_river, color = 'dodgerblue3', linewidth = 0.3) +
     
     #add study area boundary
     geom_sf(data = study_area, fill = NA, color = "black", linewidth = 0.8, alpha = 0.8) +
+    
+    #add camera plots (OPTIONAL)
+    # geom_sf(data = plot_points, shape = 21, fill = "black", color = "black", size = 0.5, alpha = 0.8) +
     
     #add north arrow 
     annotation_north_arrow(

@@ -1,4 +1,5 @@
 ## Modify detection histories for given primary/secondary sampling periods
+## Also calculate effort (days surveyed per secondary sampling period)
 
 library(data.table)
 library(tidyverse)
@@ -381,12 +382,12 @@ library(tidyverse)
   (n_days <- interval(beg, end)/days(1))
   
   #set primary period start/end dates (seasons: wet=Dec-March, cool=Apr-Jul, dry=Aug-Nov)
-  (n_primary <- 3)
+  (n_primary <- 3) #3 per year
   (n_yrs <- year(end) - year(beg) + 1)
-  dates_primary <- data.frame('season' = rep(c('dry','wet','cool'), length.out = n_yrs * n_primary),
+  dates_primary <- data.frame('season' = rep(c('cool','dry','wet'), length.out = n_yrs * n_primary),
                               'year' = rep(year(beg):year(end), each = n_primary),
-                              'start' = rep(c('08-01','12-01','04-01'), length.out = n_yrs * n_primary))
-  dates_primary$period <- paste(dates_primary$season, dates_primary$year, sep = '_')
+                              'start' = rep(c('04-01','08-01','12-01'), length.out = n_yrs * n_primary))
+  dates_primary$period <- paste(dates_primary$year, dates_primary$season, sep = '_')
   dates_primary$start <- as.POSIXct(strptime(paste(dates_primary$year, dates_primary$start, sep = '-'),
                                              format = '%Y-%m-%d'), tz = 'Africa/Blantyre')
   dates_primary <- dates_primary %>% arrange(start) %>% mutate(end = lead(start) - days(1)) #subtract 1 to not include the next start date
@@ -404,7 +405,7 @@ library(tidyverse)
                 mutate(primary = dates_primary$period[which(date >= dates_primary$start & date <= dates_primary$end)]) %>% ungroup()
   
   #set secondary period
-  secondary <- 7
+  secondary <- 7 #7 days
   dates_df <- dates_df %>% group_by(primary) %>% mutate(secondary = ceiling(row_number() / secondary)) %>% ungroup()
   
   #create a combined field
@@ -412,13 +413,13 @@ library(tidyverse)
                            formatC(as.numeric(dates_df$secondary), width = 2, flag = "0"), sep = '-')
 
   #do all primary periods have the same number of secondary periods?
-  (n_primary <- length(unique(dates_df$primary))) 
-  (n_secondary <- max(dates_df$secondary))
+  (n_primary <- length(unique(dates_df$primary))) #17 seasons
+  (n_secondary <- max(dates_df$secondary)) #18 weeks
   n_primary * n_secondary
   length(unique(dates_df$period)) #yes bc I padded them
   
   #remove 1 totally empty season (also remove dry_2018? only have one month)
-  dates_df <- dates_df %>% filter(!primary %in% c('cool_2018'))
+  dates_df <- dates_df %>% filter(!primary %in% c('cool_2018')) #now 16 seasons
   
   #save date/period key
   write.csv(dates_df, 'data/cleaned/period_3-18_date_key.csv')
@@ -444,49 +445,90 @@ library(tidyverse)
     #merge date/period key 
     dh_sp <- left_join(dh_sp, dates_df, by = 'date')
     
-    ## WIDE:
+    ## WIDE DET HISTORY:
       #aggregate by period
       dh_wide_sp <- reshape2::dcast(dh_sp, site ~ factor(period, levels = unique(dh_sp$period)),
                                     value.var = 'n_photos_cleaned', 
                                     fun.aggregate = function(x) if(all(is.na(x)) == TRUE) NA_real_ else sum(x, na.rm = TRUE))
       
-      #remove 'dry_2018' (only has 5 weeks) and pad out 'dry_2023' (has 13 weeks)
-      dh_wide_sp <- dh_wide_sp %>% select(-"dry_2018-14", -"dry_2018-15", -"dry_2018-16", -"dry_2018-17", -"dry_2018-18")
-      dh_wide_sp <- dh_wide_sp %>% mutate('dry_2023-14' = NA, 'dry_2023-15' = NA, 'dry_2023-16' = NA, 
-                                          'dry_2023-17' = NA, 'dry_2023-18' = NA)
+      #remove '2018_dry' (only has 5 weeks) and pad out '2023_dry' (has 13 weeks)
+      dh_wide_sp <- dh_wide_sp %>% select(-"2018_dry-14", -"2018_dry-15", -"2018_dry-16", -"2018_dry-17", -"2018_dry-18")
+      dh_wide_sp <- dh_wide_sp %>% mutate('2023_dry-14' = NA, '2023_dry-15' = NA, '2023_dry-16' = NA, 
+                                          '2023_dry-17' = NA, '2023_dry-18' = NA)
+      dh_wide_sp <- dh_wide_sp %>% arrange(site)
       
-      #further split into BEFORE and AFTER fence decomissioning (WHICH SEASON TO USE?)
-      cutoff <- 'wet_2020-18'
+      #further split into BEFORE and AFTER fence decommissioning (WHICH SEASON TO USE AS FENCELINE DECOMISSIONING?)
+      cutoff <- '2020_wet-18'
       cutoff_index <- which(names(dh_wide_sp) == cutoff)
     
       dh_wide_sp_before <- dh_wide_sp[, 1:cutoff_index] #columns through cutoff season (inclusive)
       dh_wide_sp_after <- dh_wide_sp[, c(1, (cutoff_index + 1):ncol(dh_wide_sp))] #columns after
       
-    
-    ## STACKED:
+      
+    ## STACKED DET HISTORY:
       #stack by site-primary
       dh_sp$site_primary <- paste(dh_sp$site, dh_sp$primary, sep = '_')
-      dh_sp$secondary <- sprintf("%02d", dh_sp$secondary)
+      dh_sp$secondary <- sprintf("%02s", dh_sp$secondary)
       
       dh_stacked_sp <- dh_sp %>% select(site_primary, fence, class, n_photos_cleaned, secondary) %>%
+        arrange(site_primary) %>%
         pivot_wider(names_from = secondary, values_from = n_photos_cleaned, names_sort = TRUE,
                     values_fn = function(x) if(all(is.na(x)) == TRUE) NA_real_ else sum(x, na.rm = TRUE))
       
-      #further split into BEFORE and AFTER fence decomissioning
+      #further split into BEFORE and AFTER fence decommissioning
       cutoff_date <- max(dates_df[dates_df$period == cutoff,]$date)
       dh_sp$before_after <- ifelse(dh_sp$date <= cutoff_date, 'before', 'after')
       
       dh_stacked_sp_before <- dh_sp %>% filter(before_after == 'before') %>%
+        arrange(site_primary) %>%
         select(site_primary, fence, class, n_photos_cleaned, secondary) %>%
         pivot_wider(names_from = secondary, values_from = n_photos_cleaned, names_sort = TRUE,
                     values_fn = function(x) if(all(is.na(x)) == TRUE) NA_real_ else sum(x, na.rm = TRUE))
       
       dh_stacked_sp_after <- dh_sp %>% filter(before_after == 'after') %>%
+        arrange(site_primary) %>%
         select(site_primary, fence, class, n_photos_cleaned, secondary) %>%
         pivot_wider(names_from = secondary, values_from = n_photos_cleaned, names_sort = TRUE,
                     values_fn = function(x) if(all(is.na(x)) == TRUE) NA_real_ else sum(x, na.rm = TRUE))
-    
-    #save
+      
+      
+    ## EFFORT COVARIATE -- only need to do this once! will be the same for all species.
+      if(sp == names(dh_long)[1]){
+        
+        #make WIDE effort covariate (days surveyed per week):
+        dh_wide_effort <- reshape2::dcast(dh_sp, site ~ factor(period, levels = unique(dh_sp$period)),
+                                          value.var = 'surv',
+                                          fun.aggregate = function(x) if(all(is.na(x)) == TRUE) NA_real_ else sum(x, na.rm = TRUE))
+        
+          #sort by site
+          dh_wide_effort <- dh_wide_effort %>% arrange(site)
+        
+          #and split into before/after
+          dh_wide_effort_before <- dh_wide_effort[, 1:cutoff_index]
+          dh_wide_effort_after <- dh_wide_effort[, c(1, (cutoff_index + 1):ncol(dh_wide_effort))]
+          
+        #make STACKED effort covar (days surveyed per week):
+          dh_stacked_effort <- dh_sp %>% select(site_primary, fence, class, secondary, surv) %>%
+            arrange(site_primary) %>%
+            pivot_wider(names_from = secondary, values_from = surv, names_sort = TRUE,
+                        values_fn = function(x) if(all(is.na(x)) == TRUE) NA_real_ else sum(x, na.rm = TRUE))
+          
+          #and split into before and after
+          dh_stacked_effort_before <- dh_sp %>% filter(before_after == 'before') %>% 
+            arrange(site_primary) %>%
+            select(site_primary, fence, class, secondary, surv) %>%
+            pivot_wider(names_from = secondary, values_from = surv, names_sort = TRUE,
+                        values_fn = function(x) if(all(is.na(x)) == TRUE) NA_real_ else sum(x, na.rm = TRUE))
+          
+          dh_stacked_effort_after <- dh_sp %>% filter(before_after == 'after') %>% 
+            arrange(site_primary) %>%
+            select(site_primary, fence, class, secondary, surv) %>%
+            pivot_wider(names_from = secondary, values_from = surv, names_sort = TRUE,
+                        values_fn = function(x) if(all(is.na(x)) == TRUE) NA_real_ else sum(x, na.rm = TRUE))
+      }
+      
+      
+    #save individual CSVs
     dh_wide[[sp]] <- dh_wide_sp
     dh_wide_before[[sp]] <- dh_wide_sp_before
     dh_wide_after[[sp]] <- dh_wide_sp_after
@@ -497,13 +539,12 @@ library(tidyverse)
     dh_stacked[[sp]] <- dh_stacked_sp
     dh_stacked_before[[sp]] <- dh_stacked_sp_before
     dh_stacked_after[[sp]] <- dh_stacked_sp_after
-    
     write.csv(dh_stacked_sp, paste('data/cleaned/detection_histories_3-18_periods_cam_stacked/', 'dh_wide_cam_stacked_', sp, '.csv', sep = ''))
     write.csv(dh_stacked_sp_before, paste('data/cleaned/detection_histories_3-18_periods_cam_stacked/', 'dh_wide_cam_stacked_before_', sp, '.csv', sep = ''))
     write.csv(dh_stacked_sp_after, paste('data/cleaned/detection_histories_3-18_periods_cam_stacked/', 'dh_wide_cam_stacked_after_', sp, '.csv', sep = ''))
   }
   
-  #save
+  #save detection history R objects
   write_rds(dh_wide, 'data/cleaned/detection_histories_3-18_periods_cam/dh_wide_cam_all.RDS')  
   write_rds(dh_wide_before, 'data/cleaned/detection_histories_3-18_periods_cam/dh_wide_cam_all_before.RDS')  
   write_rds(dh_wide_after, 'data/cleaned/detection_histories_3-18_periods_cam/dh_wide_cam_all_after.RDS')  
@@ -512,6 +553,13 @@ library(tidyverse)
   write_rds(dh_stacked_before, 'data/cleaned/detection_histories_3-18_periods_cam_stacked/dh_wide_cam_all_stacked_before.RDS')
   write_rds(dh_stacked_after, 'data/cleaned/detection_histories_3-18_periods_cam_stacked/dh_wide_cam_all_stacked_after.RDS')
   
+  #save effort covariates as CSVs
+  write.csv(dh_wide_effort, 'data/cleaned/covariates/effort/effort_wide_3-18.csv')
+  write.csv(dh_wide_effort_before, 'data/cleaned/covariates/effort/effort_wide_3-18_before.csv')
+  write.csv(dh_wide_effort_after, 'data/cleaned/covariates/effort/effort_wide_3-18_after.csv')
   
-
+  write.csv(dh_stacked_effort, 'data/cleaned/covariates/effort/effort_stacked_3-18.csv')
+  write.csv(dh_stacked_effort_before, 'data/cleaned/covariates/effort/effort_stacked_3-18_before.csv')
+  write.csv(dh_stacked_effort_after, 'data/cleaned/covariates/effort/effort_stacked_3-18_after.csv')
+  
     

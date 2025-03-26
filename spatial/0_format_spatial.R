@@ -78,13 +78,13 @@ library(ggplot2)
   terra::res(lc_raster) #20x20 for land cover
   
   
-## Reclassify land cover to create 'human disturbance' class -------------------
+## Reclassify land cover to create 'cleared areas' class -----------------------
   
   freq(lc_raster)  
   
   #change all 51 (agriculture) to 50 (clearings) 
   lc_raster_rc <- lc_raster
-  lc_raster_rc[lc_raster_rc == 51] <- 50 #50 will now be 'human'
+  lc_raster_rc[lc_raster_rc == 51] <- 50 #50 will now be 'cleared'
 
   freq(lc_raster_rc)  #compare with above
   
@@ -131,7 +131,7 @@ library(ggplot2)
   unique(lc_raster_rc)
   lc_key <- data.frame('land_cov' = unique(lc_raster_rc),
                        'class_name' = c('M1','M2','M3','Afromontane','Water',
-                                        'Dambo','Rock','Human'))
+                                        'Dambo','Rock','Cleared'))
   n_classes <- nrow(lc_key)
 
   #make empty lists for storing results
@@ -162,7 +162,7 @@ library(ggplot2)
   summary(lc_props_3x3$Dambo) 
   summary(lc_props_3x3$Water) 
   summary(lc_props_3x3$Rock) 
-  summary(lc_props_3x3$Human) 
+  summary(lc_props_3x3$Cleared) 
   
   
 ## Extract values at camera stations (continuous var) --------------------------
@@ -284,7 +284,7 @@ library(ggplot2)
   summary(lc_values_3x3$prop_Water_3x3) #ok, none of our cameras were in water
   summary(lc_values_3x3$prop_Dambo_3x3) 
   summary(lc_values_3x3$prop_Rock_3x3) #ok, none of our cameras were in water
-  summary(lc_values_3x3$prop_Human_3x3)
+  summary(lc_values_3x3$prop_Cleared_3x3)
   
   
 ## Calculate distance from dambo -----------------------------------------------
@@ -348,65 +348,65 @@ library(ggplot2)
   hist(dambo_distances$dist_dambo_sd_3x3)
   
   
-## Calculate distance from human impact areas ----------------------------------  
+## Calculate distance from cleared areas ----------------------------------  
   
   #we're using the original raster now, not the 3x3 or 5x5 summaries 
   
-  #which LC class is 'human'?
+  #which LC class is 'Cleared'?
   lc_key
-  freq(lc_raster_rc) #50 is Human
+  freq(lc_raster_rc) #50 is Cleared
   
   #reclassify 0/1
-  human_raster <- lc_raster == 50 
-  freq(human_raster)
+  cleared_raster <- lc_raster == 50 
+  freq(cleared_raster)
   
   #shrink (e.g., remove small areas). first set min patch size (pixels)
   min_size <- 2
   
   #calculate patch sizes
-  human_patches_rast <- terra::patches(human_raster, zeroAsNA=TRUE) #is zeroAsNA=TRUE here correct?
-  human_patch_sizes <- terra::zonal(human_raster, human_patches_rast, fun="sum")
-    summary(human_patch_sizes[,2])
-    head(human_patch_sizes)
+  cleared_patches_rast <- terra::patches(cleared_raster, zeroAsNA=TRUE) #is zeroAsNA=TRUE here correct?
+  cleared_patch_sizes <- terra::zonal(cleared_raster, cleared_patches_rast, fun="sum")
+    summary(cleared_patch_sizes[,2])
+    head(cleared_patch_sizes)
   
   #keep patches > minimum size
-  human_patches_keep <- human_patch_sizes[human_patch_sizes$land_cov >= min_size, 1]
-  human_clean <- ifel(human_patches_rast %in% human_patches_keep, 1, NA)
+  cleared_patches_keep <- cleared_patch_sizes[cleared_patch_sizes$land_cov >= min_size, 1]
+  cleared_clean <- ifel(cleared_patches_rast %in% cleared_patches_keep, 1, NA)
   
   #compare with original
-  plot(human_raster, col = c('purple4','yellow'))
-  plot(human_clean, colNA = 'purple4', col = 'yellow')
+  plot(cleared_raster, col = c('purple4','yellow'))
+  plot(cleared_clean, colNA = 'purple4', col = 'yellow')
   
-  freq(human_raster)
-  freq(human_clean)
+  freq(cleared_raster)
+  freq(cleared_clean)
   
   #calculate dist raster
-  human_dist_rast <- terra::distance(human_clean)
-    plot(human_dist_rast)
-    summary(human_dist_rast)
+  cleared_dist_rast <- terra::distance(cleared_clean)
+    plot(cleared_dist_rast)
+    summary(cleared_dist_rast)
   
   #now summarize at 3x3 and 5x5?  
-  human_dist_rast_mean_3x3 <- focal(human_dist_rast, w = 3, fun = 'mean', na.rm = FALSE)  
-  human_dist_rast_mean_5x5 <- focal(human_dist_rast, w = 5, fun = 'mean', na.rm = FALSE)  
-  human_dist_rast_sd_3x3 <- focal(human_dist_rast, w = 3, fun = 'sd')  
-  human_dist_rast_sd_5x5 <- focal(human_dist_rast, w = 3, fun = 'sd')  
+  cleared_dist_rast_mean_3x3 <- focal(cleared_dist_rast, w = 3, fun = 'mean', na.rm = FALSE)  
+  cleared_dist_rast_mean_5x5 <- focal(cleared_dist_rast, w = 5, fun = 'mean', na.rm = FALSE)  
+  cleared_dist_rast_sd_3x3 <- focal(cleared_dist_rast, w = 3, fun = 'sd')  
+  cleared_dist_rast_sd_5x5 <- focal(cleared_dist_rast, w = 3, fun = 'sd')  
   
-  #extract dist to dambo for each camera station
-  human_distances <- terra::extract(human_dist_rast_mean_3x3, camera_coords, bind = TRUE)
-    names(human_distances)[ncol(human_distances)] <- 'dist_human_mean_3x3'
-  human_distances <- terra::extract(human_dist_rast_sd_3x3, human_distances, bind = TRUE)
-    names(human_distances)[ncol(human_distances)] <- 'dist_human_sd_3x3'
+  #extract dist to cleared for each camera station
+  cleared_distances <- terra::extract(cleared_dist_rast_mean_3x3, camera_coords, bind = TRUE)
+    names(cleared_distances)[ncol(cleared_distances)] <- 'dist_cleared_mean_3x3'
+  cleared_distances <- terra::extract(cleared_dist_rast_sd_3x3, cleared_distances, bind = TRUE)
+    names(cleared_distances)[ncol(cleared_distances)] <- 'dist_cleared_sd_3x3'
     
-  human_distances <- terra::extract(human_dist_rast_mean_5x5, human_distances, bind = TRUE)
-    names(human_distances)[ncol(human_distances)] <- 'dist_human_mean_5x5'
-  human_distances <- terra::extract(human_dist_rast_sd_5x5, human_distances, bind = TRUE)
-    names(human_distances)[ncol(human_distances)] <- 'dist_human_sd_5x5'
+  cleared_distances <- terra::extract(cleared_dist_rast_mean_5x5, cleared_distances, bind = TRUE)
+    names(cleared_distances)[ncol(cleared_distances)] <- 'dist_cleared_mean_5x5'
+  cleared_distances <- terra::extract(cleared_dist_rast_sd_5x5, cleared_distances, bind = TRUE)
+    names(cleared_distances)[ncol(cleared_distances)] <- 'dist_cleared_sd_5x5'
     
   #view summaries  
-  names(human_distances)
-  summary(human_distances$dist_human_mean_3x3); summary(human_distances$dist_human_sd_3x3)
-  hist(human_distances$dist_human_mean_3x3)
-  hist(human_distances$dist_human_sd_3x3)    
+  names(cleared_distances)
+  summary(cleared_distances$dist_cleared_mean_3x3); summary(cleared_distances$dist_cleared_sd_3x3)
+  hist(cleared_distances$dist_cleared_mean_3x3)
+  hist(cleared_distances$dist_cleared_sd_3x3)    
     
   
 ## Read covariate shapefiles (rivers) -------------------------------------------
@@ -444,7 +444,7 @@ library(ggplot2)
   head(lc_values_5x5)
   
   head(dambo_distances)
-  head(human_distances)
+  head(cleared_distances)
   head(river_distances)
   
   #actually just export them all and I will work with them in the next script
@@ -455,7 +455,7 @@ library(ggplot2)
   write.csv(as.data.frame(lc_values_3x3), 'spatial/summarized_covariates/landcover_3x3.csv', row.names = FALSE)
   write.csv(as.data.frame(lc_values_5x5), 'spatial/summarized_covariates/landcover_5x5.csv', row.names = FALSE)
   write.csv(as.data.frame(dambo_distances), 'spatial/summarized_covariates/dist_dambo.csv', row.names = FALSE)
-  write.csv(as.data.frame(human_distances), 'spatial/summarized_covariates/dist_human.csv', row.names = FALSE)
+  write.csv(as.data.frame(cleared_distances), 'spatial/summarized_covariates/dist_cleared.csv', row.names = FALSE)
   write.csv(as.data.frame(river_distances), 'spatial/summarized_covariates/dist_river.csv', row.names = FALSE)
   
   #save as shp
@@ -464,7 +464,7 @@ library(ggplot2)
   # writeVector(lc_values_3x3, 'spatial/summarized_covariates/landcover_3x3.shp')
   # writeVector(lc_values_5x5, 'spatial/summarized_covariates/landcover_5x5.shp')
   # writeVector(dambo_distances, 'spatial/summarized_covariates/dist_dambo.shp')
-  # writeVector(human_distances, 'spatial/summarized_covariates/dist_human.shp')
+  # writeVector(cleared_distances, 'spatial/summarized_covariates/dist_cleared.shp')
   # writeVector(river_distances, 'spatial/summarized_covariates/dist_river.shp')
   
   
@@ -503,30 +503,42 @@ library(ggplot2)
   names(clipped_lc_3x3)  
   
   #plot land cover rasters
-  tiff('spatial/land_cover_rasters_3x3.tiff', width=1500, height=1600, res=300)
-  par(mfrow=c(4,2))
-  for (yy in 1:length(clipped_lc_3x3)){
+  tiff('spatial/land_cover_rasters_3x3_select.tiff', width=1500, height=800, res=300)
+  # par(mfrow=c(4,2))
+  par(mfrow=c(1,3))
+  # for (yy in 1:length(clipped_lc_3x3)){ #to plot them all
+  for (yy in 1:3){ #just plot the first 3 now (M1, M2, M3)
     plot(clipped_lc_3x3[[yy]], main = names(clipped_lc_3x3)[yy])
   }  
   dev.off()
    
   #clip dist to dambo (just 3x3 for now)
-  cropped_dambo <- crop(dambo_dist_rast_mean_3x3, study_area_polygon)
-  masked_dambo <- mask(cropped_dambo, study_area_polygon)
+  cropped_dambo_mean <- crop(dambo_dist_rast_mean_3x3, study_area_polygon)
+    masked_dambo_mean <- terra::mask(cropped_dambo_mean, study_area_polygon)
+  cropped_dambo_sd <- crop(dambo_dist_rast_sd_3x3, study_area_polygon)
+    masked_dambo_sd <- terra::mask(cropped_dambo_sd, study_area_polygon)
   
-  #clip dist to human (just 3x3 for now)
-  cropped_human <- crop(human_dist_rast_mean_3x3, study_area_polygon)
-  masked_human <- mask(cropped_human, study_area_polygon)
-  
-  #plot dist to dambo and dist to human disturbance
-  tiff('spatial/dist_dambo_human_raster_3x3.tiff', width = 1500, height = 800, res = 300)
-  par(mfrow=c(1,2))
-    plot(masked_dambo, main = 'Distance to dambo')
-    plot(masked_human, main = 'Distance to human')
+  #clip dist to cleared (just 3x3 for now)
+  cropped_cleared_mean <- crop(cleared_dist_rast_mean_3x3, study_area_polygon)
+    masked_cleared_mean <- terra::mask(cropped_cleared_mean, study_area_polygon)
+  cropped_cleared_sd <- crop(cleared_dist_rast_sd_3x3, study_area_polygon)
+    masked_cleared_sd <- terra::mask(cropped_cleared_sd, study_area_polygon)
+    
+  #plot dist to dambo and dist to cleared disturbance
+  tiff('spatial/dist_dambo_cleared_raster_3x32.tiff', width = 1500, height = 1200, res = 300)
+  par(mfrow=c(2,2))
+    plot(masked_dambo_mean, main = 'Distance to dambo (mean)')
+    plot(masked_cleared_mean, main = 'Distance to cleared (mean)')
+    plot(masked_dambo_sd, main = 'Distance to dambo (SD)')
+    plot(masked_cleared_sd, main = 'Distance to cleared (SD)')
   dev.off()
   
   
   #plot dist to rivers? well it's not a raster
+  tiff('spatial/rivers.tiff', width = 1500, height = 1500, res = 300)
+  par(mfrow=c(1,1))
+    plot(rivers, main = 'Rivers and streams')
+  dev.off()
   
   
   

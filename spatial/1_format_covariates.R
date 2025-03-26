@@ -24,6 +24,11 @@ library(ggpubr)
   covars <- reduce(file_list, full_join) #will find matching columns for merging
     names(covars)
     
+  #read in and merge fence north/south covariate
+  coords_csv <- fread('data/raw/covariates/MonitoringPlots_corrected_031825_withFence.csv')
+  coords_csv_fence <- coords_csv %>% select(Site, fence) %>% mutate(fence = replace_na(fence, 0))
+  covars <- covars %>% left_join()
+    
     
 ## Summaries to report ---------------------------------------------------------
 
