@@ -3,6 +3,7 @@
 library(data.table)
 library(purrr)
 library(dplyr)
+library(tidyr)
 library(terra)
 library(sf)
 library(ggplot2)
@@ -24,16 +25,36 @@ library(ggpubr)
   covars <- reduce(file_list, full_join) #will find matching columns for merging
     names(covars)
     
-  #read in and merge fence north/south covariate
+  #read in fence north/south covariate
   coords_csv <- fread('data/raw/covariates/MonitoringPlots_corrected_031825_withFence.csv')
   coords_csv_fence <- coords_csv %>% select(Site, fence) %>% mutate(fence = replace_na(fence, 0))
-  covars <- covars %>% left_join()
+  
+  #merge
+  covars <- covars %>% left_join(coords_csv_fence, by = 'Site')
     
     
 ## Summaries to report ---------------------------------------------------------
 
   #include SD      
   sapply(covars, function(x) if(is.numeric(x)) round(c(summary(x), 'SD' = sd(x, na.rm = TRUE)), 4))
+  
+  #for fence
+  table(covars$fence, useNA = 'a') #124 north (0), 86 south (1)
+  
+  #store (will use these for predictions and marginal plots)
+  covar_summaries <- covars %>% summarise(across(elev_mean_3x3:fence, 
+                                                 list(mean = ~mean(.x, na.rm = TRUE),
+                                                      sd = ~sd(.x, na.rm = TRUE),
+                                                      min = ~min(.x, na.rm = TRUE),
+                                                      max = ~max(.x, na.rm = TRUE)), .names = "{.col}.{.fn}")) %>%
+                                pivot_longer(cols = everything(), names_to = ('variable_stat'), values_to = 'value') %>%
+                                separate(variable_stat, into = c('variable','stat'), sep = '\\.', extra = 'merge') %>%
+                                pivot_wider(names_from = stat, values_from = value) %>%
+                                mutate(across(mean:max, ~ round(.x, 4))) #round
+    
+  
+  #save
+  write.csv(covar_summaries, 'data/cleaned/covariates/covar_summmaries.csv')
   
   
 ## Replace NAs if necessary ----------------------------------------------------
@@ -44,8 +65,8 @@ library(ggpubr)
   (hex_to_fix <- c('K26','M26'))
   #K26-C and M26-C are outside the modeled area for everything except elevation
     #Replace with avg values at sites A and B for these hexagons
-    #They do have values for distances to dambo and human, but there is no land cover mapped 
-    # in those areas so we shouldn't use them.
+    #They do have values for distances to dambo and cleared, but there is no land cover 
+    # mapped in those areas so we shouldn't use them.
 
   covars[covars$HexIDcorre %in% hex_to_fix,]
   
@@ -98,7 +119,7 @@ library(ggpubr)
     
   #check for mean~0, sd~1
   sapply(covars_scaled, function(x) if(is.numeric(x)) round(c(summary(x), 'SD' = sd(x, na.rm = TRUE)), 4))
-    #NAs are ok for Afromontane, Water, Rock -- we're not using them
+    #NAs are ok for Afromontane, Water, Rock -- no cameras ended up there & we're not using them
     
     
 ## Test for correlations -------------------------------------------------------
@@ -109,6 +130,9 @@ library(ggpubr)
   #also remove Afromontane, Dambo, Water classes bc we're not using them and they are all 0s
   covar_names_3x3 <- covar_names[!grepl('5x5|Afromontane|Water|Rock|Dambo', covar_names, ignore.case = FALSE)]
   covar_names_3x3 #make sure it kept 'dist_dambo' but not 'prop_Dambo"
+  
+  #add fence here for correlation tests
+  (covar_names_3x3 <- c(covar_names_3x3, 'fence'))
   
   #create function to format correlation dataframe
   flattenCorrMatrix <- function(cormat, pmat) {
@@ -135,8 +159,8 @@ library(ggpubr)
   
   #flatten and save
   (corrMatrix <- flattenCorrMatrix(cors2$r, cors2$P))
-  write.csv(corrMatrix, 'data/cleaned/covariates/covar_correlations.csv')
-  write.csv(cors2$r, 'data/cleaned/covariates/covar_correlations_matrix_r.csv')
+    write.csv(corrMatrix, 'data/cleaned/covariates/covar_correlations.csv')
+    write.csv(cors2$r, 'data/cleaned/covariates/covar_correlations_matrix_r.csv')
   
   #symbolic correlation matrix
   symnum(cors1, abbr.colnames = FALSE)  
@@ -188,7 +212,9 @@ library(ggpubr)
   
     
 ## Save ------------------------------------------------------------------------
+
+  write.csv(covars, 'data/cleaned/covariates/cleaned_covariates.csv')
+  write.csv(covars_scaled, 'data/cleaned/covariates/cleaned_covariates_scaled.csv')
   
-  write.csv(covars_scaled, 'data/cleaned/covariates/cleaned_covariates.csv')
   
   

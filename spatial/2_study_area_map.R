@@ -38,7 +38,10 @@ library(maptiles)
   plot_coords <- read.csv('data/raw/covariates/MonitoringPlots_corrected_031825_withFence.csv')
   
     #convert coords to sf object
-    plot_points <- st_as_sf(camera_csv, coords = c('UTMXcorrec','UTMYcorrec'), crs = nwr_crs)
+    plot_points <- st_as_sf(plot_coords, coords = c('UTMXcorrec','UTMYcorrec'), crs = nwr_crs)
+    
+  #animal release sites (bomas)
+  boma_sites <- st_read('data/raw/covariates/boma_sites.shp')
   
   #get Malawi country boundary for inset map
   malawi <- ne_countries(scale = "medium", country = "Malawi", returnclass = "sf")
@@ -76,6 +79,9 @@ library(maptiles)
     #add camera plots (OPTIONAL)
     # geom_sf(data = plot_points, shape = 21, fill = "black", color = "black", size = 0.5, alpha = 0.8) +
     
+    #add bomas
+    geom_sf(data = boma_sites, shape = 17, fill = 'black', color = 'black', size = 4.5) +
+    
     #add north arrow 
     annotation_north_arrow(
       location = "bl", 
@@ -112,9 +118,9 @@ library(maptiles)
   
   #plot
   inset_map1 <- ggplot() +
-    geom_sf(data = malawi, fill = "darkgrey", color = "black", size = 0.5) +
+    geom_sf(data = malawi, fill = "white", color = "red", linewidth = 0.8) +
     # geom_sf(data = study_area, color = "red", size = 3) + #for study area as 1 point
-    geom_sf(data = study_area_polygon, fill = 'red', color = 'red') +
+    geom_sf(data = study_area_polygon, fill = 'black', color = 'black') +
     theme_void() +
     theme(
       panel.background = element_rect(fill = "transparent", color = NA),
@@ -126,7 +132,7 @@ library(maptiles)
   
   inset_map2 <- ggplot() +
     geom_sf(data = africa, fill = "lightgrey", color = "darkgrey", size = 0.2) +
-    geom_sf(data = malawi, fill = "black", color = "black", size = 0.5) +
+    geom_sf(data = malawi, fill = "red", color = "red", size = 0.5) +
     theme_void() +
     theme(
       panel.background = element_rect(fill = "transparent", color = NA),
